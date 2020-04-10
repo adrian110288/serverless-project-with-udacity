@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda'
 import 'source-map-support/register'
 import { DynamoDB } from 'aws-sdk'
-import uuid from 'uuid'
+import * as uuid from 'uuid'
 
 const docClient = new DynamoDB.DocumentClient()
 const groupsTable = process.env.GROUPS_TABLE
