@@ -4,35 +4,39 @@ import { DynamoDB } from 'aws-sdk'
 
 const docClient = new DynamoDB.DocumentClient()
 
-const groupsTable = process.env.GROUPS_TABLE
 const imagesTable = process.env.IMAGES_TABLE
+const imageIdIndex = process.env.IMAGE_ID_INDEX
 
 export const handler: APIGatewayProxyHandler = async (event, _context) => {
 
-    const groupId = event.pathParameters.groupId
+    const imageId = event.pathParameters.imageId
 
-    const validGroupId = await groupExists(groupId)
+    const result = await docClient.query({
+        TableName: imagesTable,
+        IndexName: imageIdIndex,
+        KeyConditionExpression: 'imageId = :imageId',
+        ExpressionAttributeValues: {
+            ':imageId': imageId
+        },
+        ScanIndexForward: true
+    }).promise()
 
-    if (!validGroupId) {
+    if (result.Count !== 0) {
         return {
-            statusCode: 404,
+            statusCode: 200,
             headers: {
                 'Access-Control-Allow-Origin': '*'
             },
-            body: JSON.stringify({ 
-                error: 'Group does not exist'
-             })
+            body: JSON.stringify(result.Items[0])
         };
     }
 
-    const images = await getImagePerGroup(groupId)
-
     return {
-        statusCode: 200,
+        statusCode: 400,
         headers: {
             'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ items: images })
+        body: ''
     };
 }
 
