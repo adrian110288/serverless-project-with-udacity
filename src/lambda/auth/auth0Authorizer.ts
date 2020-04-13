@@ -2,20 +2,19 @@ import 'source-map-support/register'
 import { CustomAuthorizerHandler, CustomAuthorizerEvent } from 'aws-lambda'
 import { verify } from 'jsonwebtoken'
 import { JwtToken } from '../../auth/JwtToken'
-import * as AWS from 'aws-sdk'
+import * as middy from 'middy'
+import { secretsManager } from 'middy/middlewares'
 
 const auth0SecretId = process.env.AUTH_0_SECRET_ID
 const auth0SecretField = process.env.AUTH_0_SECRET_FIELD
 
-const client = new AWS.SecretsManager()
-
-let cachedSecret: string
- 
-export const handler: CustomAuthorizerHandler = async (event: CustomAuthorizerEvent) => {
+export const handler = middy(async (event: CustomAuthorizerEvent, context) => {
 
     try {
 
-        const decodedToken = await verifyToken(event.authorizationToken)
+        const decodedToken = verifyToken(
+            event.authorizationToken,
+            context.AUTH0_SECRET[auth0SecretField])
 
         return {
             principalId: decodedToken.sub,
@@ -49,9 +48,9 @@ export const handler: CustomAuthorizerHandler = async (event: CustomAuthorizerEv
         }
     }
 
-}
+})
 
-async function verifyToken(authHeader: string): Promise<JwtToken> {
+function verifyToken(authHeader: string, secret: string): JwtToken {
 
 
     if (!authHeader) {
@@ -65,23 +64,32 @@ async function verifyToken(authHeader: string): Promise<JwtToken> {
     const split = authHeader.split(' ')
     const token = split[1]
 
-    const secretObject = await getSecret()
-    const secret = secretObject[auth0SecretField]
-
     return verify(token, secret) as JwtToken
 }
 
-async function getSecret() {
+// async function getSecret() {
 
-    if (cachedSecret) return cachedSecret
+//     if (cachedSecret) return cachedSecret
 
-    const data = await client.getSecretValue({
-        SecretId: auth0SecretId
-    }).promise()
+//     const data = await client.getSecretValue({
+//         SecretId: auth0SecretId
+//     }).promise()
 
-    cachedSecret = data.SecretString
+//     cachedSecret = data.SecretString
 
-    return JSON.parse(cachedSecret)
+//     return JSON.parse(cachedSecret)
 
 
-}
+// }
+
+handler.use(
+    secretsManager({
+      cache: true,
+      cacheExpiryInMillis: 60000,
+      // Throw an error if can't read the secret
+      throwOnFailedCall: true,
+      secrets: {
+        AUTH0_SECRET: auth0SecretId
+      }
+    })
+  )

@@ -2,6 +2,8 @@ import { APIGatewayProxyHandler, APIGatewayProxyEvent, APIGatewayProxyResult } f
 import 'source-map-support/register'
 import * as AWS  from 'aws-sdk'
 import * as uuid from 'uuid'
+import * as middy from 'middy'
+import { cors } from 'middy/middlewares'
 
 const docClient = new AWS.DynamoDB.DocumentClient()
 
@@ -14,7 +16,7 @@ const imagesTable = process.env.IMAGES_TABLE
 const bucket = process.env.IMAGES_S3_BUCKET
 const signedUrlExpiration = process.env.SIGNED_URL_EXPIRATION
 
-export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = middy(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Caller event', event)
   const groupId = event.pathParameters.groupId
   const validGroupId = await groupExists(groupId)
@@ -57,15 +59,12 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
 
   return {
     statusCode: 201,
-    headers: {
-      'Access-Control-Allow-Origin': '*'
-    },
     body: JSON.stringify({ 
       newItem,
       uploadUrl 
     })
   }
-}
+})
 
 async function groupExists(groupId: string) {
   const result = await docClient
@@ -80,3 +79,9 @@ async function groupExists(groupId: string) {
   console.log('Get group: ', result)
   return !!result.Item
 }
+
+handler.use(
+  cors({
+    credentials: true
+  })
+)
