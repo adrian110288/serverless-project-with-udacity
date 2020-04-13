@@ -31,6 +31,7 @@ provider:
     IMAGES_S3_BUCKET: serverless-images-adrian110288-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 3000
     CONNECTIONS_TABLE: Connections-${self:provider.stage}
+    THUMBNAILS_S3_BUCKET: serverless-thumbnail-images-adrian110288-${self:provider.stage}
 
   iamRoleStatements:
     - Effect: Allow
@@ -53,6 +54,10 @@ provider:
         - s3:PutObject
         - s3:GetObject
       Resource: arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource: arn:aws:s3:::${self:provider.environment.THUMBNAILS_S3_BUCKET}/*  
     - Effect: Allow
       Action:
         - dynamodb:Scan
@@ -87,6 +92,19 @@ functions:
           method: get
           path: groups/{groupId}/images
           cors: true
+
+  ResizeImage:
+    handler: src/lambda/s3/resizeImage.handler
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - arn:aws:sns
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - ${self:custom.topicName}
+          topicName: ${self:custom.topicName}
 
   GetImage:
     handler: src/lambda/http/getImage.handler
@@ -210,6 +228,25 @@ resources:
             - Event: s3:ObjectCreated:Put
               Topic: !Ref ImagesTopic
 
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+
+    ThumbnailsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.THUMBNAILS_S3_BUCKET}
         CorsConfiguration:
           CorsRules:
             -
